@@ -13,18 +13,20 @@
     "dist": "electron-builder"
   },
   "dependencies": {
+    "axios": "^1.6.0",
     "better-sqlite3": "^11.0.0",
     "express": "^4.19.0",
-    "vue": "^3.4.0",
-    "vue-router": "^4.3.0",
     "pinia": "^2.1.0",
-    "axios": "^1.6.0"
+    "vue": "^3.4.0",
+    "vue-router": "^4.3.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",
     "concurrently": "^8.2.0",
     "electron": "^30.0.0",
     "electron-builder": "^24.13.0",
+    "sharp": "^0.34.5",
+    "to-ico": "^1.1.5",
     "vite": "^5.0.0"
   },
   "build": {
@@ -44,6 +46,7 @@
     ],
     "win": {
       "target": "nsis",
+      "icon": "build/icon.ico",
       "signAndEditExecutable": false
     },
     "nsis": {
