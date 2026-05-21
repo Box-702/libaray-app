@@ -54,12 +54,14 @@ function startServer() {
 }
 
 function createWindow() {
+  const iconPath = path.join(__dirname, '..', 'build', 'icon.ico')
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 860,
     minWidth: 960,
     minHeight: 640,
     title: '图书借阅系统',
+    icon: iconPath,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

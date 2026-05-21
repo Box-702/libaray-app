@@ -61,6 +61,14 @@ function initSchema() {
       status      TEXT CHECK (status IN ('0','1'))
     );
 
+    CREATE TABLE IF NOT EXISTS users (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      username     TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      token        TEXT,
+      updated_at   TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS operation_log (
       id        INTEGER PRIMARY KEY AUTOINCREMENT,
       time      TEXT NOT NULL,
@@ -122,6 +130,14 @@ function seedData() {
     [23, 'R006', 20025, '2026-05-12', '2026-06-11', null, '0']
   ]
   for (const br of borrows) insertBorrow.run(...br)
+
+  // Seed default admin account
+  const bcrypt = require('bcryptjs')
+  const hash = bcrypt.hashSync('123456', 10)
+  const seedUser = db.prepare('SELECT COUNT(*) as c FROM users').get()
+  if (seedUser.c === 0) {
+    db.prepare('INSERT INTO users (username, password_hash, updated_at) VALUES (?, ?, ?)').run('123456', hash, today)
+  }
 
   db.prepare(`INSERT INTO operation_log (time, action, detail) VALUES (?, '系统初始化', '数据库初始化完成，示例数据已加载')`).run(today)
 }

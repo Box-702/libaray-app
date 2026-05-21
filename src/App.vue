@@ -1,16 +1,20 @@
 <template>
   <div class="app" :class="{ dark: isDark }">
-    <header class="header">
-      <div class="logo">📚 图书借阅系统</div>
-      <div style="display:flex;gap:12px;align-items:center">
-        <span class="user">学号：2024463030501</span>
-        <button class="theme-btn" @click="toggleDark">{{ isDark ? '☀️ 浅色' : '🌙 深色' }}</button>
-      </div>
-    </header>
-    <nav class="tabs">
-      <router-link v-for="t in tabs" :key="t.key" :to="t.path" exact-active-class="active">{{ t.label }}</router-link>
-    </nav>
-    <main class="content">
+    <template v-if="!isLoginPage">
+      <header class="header">
+        <div class="logo">图书借阅系统</div>
+        <div class="header-right">
+          <span class="user">{{ auth.username }}</span>
+          <router-link to="/account" class="header-link">账户设置</router-link>
+          <button class="logout-btn" @click="doLogout">退出登录</button>
+          <button class="theme-btn" @click="toggleDark">{{ isDark ? '浅色' : '深色' }}</button>
+        </div>
+      </header>
+      <nav class="tabs">
+        <router-link v-for="t in tabs" :key="t.key" :to="t.path" active-class="active">{{ t.label }}</router-link>
+      </nav>
+    </template>
+    <main class="content" :class="{ 'login-content': isLoginPage }">
       <router-view />
     </main>
     <Toast />
@@ -19,15 +23,28 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from './stores/auth'
 import Toast from './components/Toast.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 
+const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
+
 const isDark = ref(false)
+const isLoginPage = computed(() => route.path === '/login')
+
 const toggleDark = () => {
   isDark.value = !isDark.value
   localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
   document.body.classList.toggle('dark', isDark.value)
+}
+
+const doLogout = () => {
+  auth.logout()
+  router.push('/login')
 }
 
 onMounted(() => {

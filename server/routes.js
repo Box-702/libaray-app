@@ -1,5 +1,7 @@
 const express = require('express')
 const { db } = require('./db')
+const bcrypt = require('bcryptjs')
+const crypto = require('crypto')
 
 const router = express.Router()
 
@@ -16,6 +18,44 @@ function log(action, detail) {
   const time = new Date().toISOString().replace('T', ' ').substring(0, 19)
   db.prepare('INSERT INTO operation_log (time, action, detail) VALUES (?,?,?)').run(time, action, detail || '')
 }
+
+function requireAuth(req, res, next) {
+  const token = req.headers['authorization']
+  if (!token) return res.status(401).json({ ok: false, msg: '未登录' })
+  const user = db.prepare('SELECT * FROM users WHERE token = ?').get(token)
+  if (!user) return res.status(401).json({ ok: false, msg: '登录已过期，请重新登录' })
+  req.user = user
+  next()
+}
+
+// ---- Auth ----
+router.post('/auth/login', (req, res) => {
+  const { username, password } = req.body
+  if (!username || !password) return res.json({ ok: false, msg: '用户名和密码不能为空' })
+  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username)
+  if (!user) return res.json({ ok: false, msg: '用户名或密码错误' })
+  if (!bcrypt.compareSync(password, user.password_hash)) return res.json({ ok: false, msg: '用户名或密码错误' })
+  const token = crypto.randomUUID()
+  db.prepare('UPDATE users SET token = ? WHERE id = ?').run(token, user.id)
+  log('用户登录', `用户 ${username} 登录系统`)
+  res.json({ ok: true, token, username: user.username })
+})
+
+router.post('/auth/change-password', requireAuth, (req, res) => {
+  const { oldPassword, newPassword } = req.body
+  if (!oldPassword || !newPassword) return res.json({ ok: false, msg: '密码不能为空' })
+  if (newPassword.length < 4) return res.json({ ok: false, msg: '新密码至少4位' })
+  if (!bcrypt.compareSync(oldPassword, req.user.password_hash)) return res.json({ ok: false, msg: '原密码错误' })
+  const hash = bcrypt.hashSync(newPassword, 10)
+  const today = new Date().toISOString().split('T')[0]
+  db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?').run(hash, today, req.user.id)
+  log('修改密码', `用户 ${req.user.username} 修改了密码`)
+  res.json({ ok: true, msg: '密码修改成功' })
+})
+
+router.get('/auth/verify', requireAuth, (req, res) => {
+  res.json({ ok: true, username: req.user.username })
+})
 
 // ---- Dashboard ----
 router.get('/dashboard', (req, res) => {
