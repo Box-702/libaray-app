@@ -1,10 +1,8 @@
 const { app, BrowserWindow } = require('electron')
-const { fork } = require('child_process')
 const path = require('path')
 const fs = require('fs')
 
 let mainWindow
-let serverProcess
 
 const isDev = !app.isPackaged
 
@@ -20,24 +18,38 @@ process.env.DB_PATH = dbPath
 process.env.SERVER_PORT = '3001'
 
 function startServer() {
-  return new Promise((resolve) => {
-    if (isDev) {
-      serverProcess = fork(path.join(__dirname, '..', 'server', 'index.js'), [], {
-        env: { ...process.env, DB_PATH: dbPath, SERVER_PORT: '3001' },
-        silent: false
+  return new Promise((resolve, reject) => {
+    try {
+      const { init } = require('../server/db')
+      const routes = require('../server/routes')
+      const express = require('express')
+
+      init()
+
+      const srv = express()
+      srv.use(express.json())
+      srv.use('/api', routes)
+
+      if (!isDev) {
+        const distPath = path.join(__dirname, '..', 'dist')
+        srv.use(express.static(distPath))
+        srv.get('*', (req, res) => {
+          if (!req.path.startsWith('/api')) {
+            res.sendFile(path.join(distPath, 'index.html'))
+          }
+        })
+      }
+
+      const port = 3001
+      srv.listen(port, '127.0.0.1', () => {
+        console.log('Server running on http://127.0.0.1:' + port)
+        resolve()
       })
-    } else {
-      const serverPath = path.join(process.resourcesPath, 'server', 'index.js')
-      serverProcess = fork(serverPath, [], {
-        env: { ...process.env, DB_PATH: dbPath, SERVER_PORT: '3001' },
-        silent: false,
-        execPath: process.execPath
-      })
+
+      srv.on('error', reject)
+    } catch (e) {
+      reject(e)
     }
-    serverProcess.stdout.on('data', (d) => console.log('[server]', d.toString().trim()))
-    serverProcess.stderr.on('data', (d) => console.error('[server]', d.toString().trim()))
-    serverProcess.on('error', (err) => console.error('[server] spawn error:', err))
-    setTimeout(resolve, isDev ? 500 : 1500)
   })
 }
 
@@ -58,15 +70,21 @@ function createWindow() {
   if (isDev) {
     mainWindow.loadURL('http://localhost:3000')
   } else {
-    mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
+    const distFile = path.join(__dirname, '..', 'dist', 'index.html')
+    mainWindow.loadFile(distFile)
   }
 
   mainWindow.on('closed', () => { mainWindow = null })
 }
 
 app.whenReady().then(async () => {
-  await startServer()
-  createWindow()
+  try {
+    await startServer()
+    createWindow()
+  } catch (err) {
+    console.error('Failed to start:', err)
+    app.quit()
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -74,10 +92,5 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
-  if (serverProcess) serverProcess.kill()
   if (process.platform !== 'darwin') app.quit()
-})
-
-app.on('before-quit', () => {
-  if (serverProcess) serverProcess.kill()
 })
